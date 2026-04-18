@@ -1,0 +1,116 @@
+\documentclass[aps,prb,reprint,superscriptaddress,amsmath,amssymb]{revtex4-2}
+
+\usepackage{physics} 
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+\begin{document}
+
+\title{Technical Note: Practical Initialization Strategies for the Toric Code in iDMRG without Imposing Symmetries}
+
+\author{Enrique Jorge Mariani de Camas}
+\affiliation{Independent Researcher}
+
+\date{\today}
+
+\begin{abstract}
+Standard infinite Density Matrix Renormalization Group (iDMRG) algorithms often fail when applied to purely diagonal topological Hamiltonians initialized from trivial product states, converging prematurely into classical flux-free minima due to the flat energy landscape. While conserving quantum numbers (e.g., $\mathbb{Z}_2$ parity) typically prevents this, there are scenarios where symmetry-agnostic simulations (`conserve=None`) are desired. In this technical note, we document a pragmatic, two-step heuristic to reliably extract the topological ground state in these scenarios. By adiabatically connecting the system to a trivial phase followed by a strict bond-dimension truncation, we successfully isolate the degenerate manifold of the 2D Toric Code and extract its Schmidt spectrum without relying on global symmetries.
+\end{abstract}
+
+\maketitle
+
+\section{\label{sec:intro}Introduction}
+The simulation of topological phases using tensor networks is well-established, with the Toric Code \cite{kitaev2003} serving as the standard benchmark. The infinite Matrix Product State (iMPS) implementation in the TeNPy library \cite{tenpy2024} generally prevents convergence into classical minima by enforcing $\mathbb{Z}_2$ parity conservation (`conserve='parity'`). 
+
+However, in certain non-equilibrium setups or when testing custom lattice modifications, maintaining strict symmetry constraints can be cumbersome or undesirable. When `conserve=None` is used, the iMPS has no energetic guide to distinguish the highly entangled topological vacuum from a trivial classical configuration. In this note, we document a simple numerical heuristic to bypass this "flat landscape" trap, successfully initializing the topological ground state and extracting its Schmidt values using only unrestricted optimization.
+
+\section{\label{sec:method}The Initialization Heuristic}
+Let $\hat{H}_{TC}$ be the standard Toric Code Hamiltonian, defined on a lattice where physical spins reside on edges $e \in E$. The heuristic consists of two sequential operations:
+
+\subsection{\label{sec:pert}Step 1: Adiabatic Symmetry Breaking}
+We define a temporarily perturbed Hamiltonian:
+\begin{equation}
+    \hat{H}(\gamma) = \hat{H}_{TC} - \gamma \left( h_x \sum_{e \in E} \hat{\sigma}^x_e + h_z \sum_{v \in V} \hat{\sigma}^z_v \right)
+\end{equation}
+where $\gamma \in [0, 1]$ scales the perturbation, $V$ is the set of vertices, and $h_x, h_z > 0$ are small constants (we used $0.2$). The perturbation explicitly breaks the gauge invariance, lifting the flat degeneracy and creating a unique, gapped ground state $|\psi_0(\gamma=1)\rangle$ that iDMRG can easily find from a product state using a standard mixer.
+
+\subsection{\label{sec:proj}Step 2: Subspace Truncation}
+Once the state is in the correct energetic basin, we instantaneously quench the Hamiltonian back to the pure topological limit ($\gamma \to 0$), deactivate the mixer, and enforce a strict bond-dimension truncation limit $\chi_{max} = d$, where $d$ is an empirically chosen integer matching the expected degeneracy for the specific iMPS unit cell geometry.
+
+The truncated Singular Value Decomposition (SVD) at a bond $i$ projects the state into the subspace spanned by the $d$ dominant Schmidt vectors. We emphasize that this is not a mathematically guaranteed projector onto the topological ground state manifold in general systems. We provide no quantitative error bounds for this step. However, empirically, we observed that because anyonic excitations require amplitudes distributed across a larger Hilbert space, strictly bounding $\chi$ to $d$ effectively discarded the non-topological components introduced by the perturbation for this specific benchmark.
+
+\section{\label{sec:2d}Numerical Demonstration}
+We benchmarked this strategy on a dual-square lattice with infinite boundary conditions along $x$ ($L_x \to \infty$) and periodic boundaries along $y$, setting $L_y = 3$. 
+
+Due to the internal lattice mapping in TeNPy, this geometry yields an iMPS with an internal 2-site unit cell grouping. This results in a total of 6 logical MPS sites per infinite unit cell. Empirically, an entanglement cut through this specific 6-site geometry intersected exactly 4 independent logical boundary sectors, dictating a target truncation parameter of $d=4$.
+
+We initialized the iMPS in a trivial product state ($|\uparrow\rangle^{\otimes N}$) with `conserve=None` in TeNPy 1.1.0. 
+\begin{itemize}
+    \item \textbf{Step 1:} We relaxed the state using $\hat{H}(\gamma=1)$ until convergence.
+    \item \textbf{Step 2:} We quenched to $\hat{H}_{TC}$, deactivated the mixer, and set `trunc_params={'chi_max': 4}`. The energy converged to $E_{topo} = -1.000$ per MPS site. This is perfectly consistent with the exact theoretical Toric Code energy of $-6.0$ per physical unit cell, correctly scaled by the 6 logical MPS sites per unit cell.
+\end{itemize}
+
+\subsection{Schmidt Spectrum Analysis}
+Without any manual post-processing, the raw Schmidt values $\lambda_i$ extracted at the entanglement cut were:
+\begin{equation}
+    \lambda_i = \{0.500, 0.500, 0.500, 0.500\}
+\end{equation}
+We define the associated probabilities as $p_i = \lambda_i^2 = 0.25$. The von Neumann entanglement entropy is therefore:
+\begin{equation}
+    S = -\sum_{i=1}^{d} p_i \ln(p_i) = -4 \left( \frac{1}{4} \ln \frac{1}{4} \right) = \ln(4) \approx 1.386
+\end{equation}
+which exactly matches the theoretical maximum for a 4-fold degenerate subspace.
+
+We report the logarithmic singular values $\epsilon_i = -\ln(\lambda_i)$. For our result, this yields:
+\begin{equation}
+    \epsilon_i = \ln(2) \approx 0.693
+\end{equation}
+\noindent\textit{Note on conventions:} We explicitly point out that this definition of $\epsilon_i$ differs by a factor of 2 from the standard Li \& Haldane Entanglement Spectrum \cite{lihaldane2008}, which is defined as $\xi_i = -\ln(p_i) = -2\ln(\lambda_i)$. Under the strict Li \& Haldane convention, our extracted levels would be $\xi_i = 2\ln(2) \approx 1.386$. We utilize the $\epsilon_i$ convention here as it directly reflects the uniformity of the singular values $\lambda_i$ without squaring.
+
+These four degenerate levels confirm that the heuristic successfully guided the symmetry-agnostic iMPS into the correct topological subspace.
+
+\section{\label{sec:conc}Limitations and Conclusion}
+We have documented a pragmatic two-step heuristic to initialize topological ground states in iDMRG without symmetry constraints. While this method proved effective for the 2D Toric Code, it should be viewed strictly as an empirical numerical tool rather than a general algorithmic theorem. The preservation of the equiprobable Schmidt spectrum relies heavily on the exact solvability and high symmetry of the benchmark model, and we provide no formal proof of its convergence in generic frustrated systems. 
+
+Furthermore, extending this approach to volumetric 3D topological models is practically precluded by the well-known exponential scaling of the required bond dimension with the cross-sectional area in 1D tensor networks \cite{eisert2010}, which makes iMPS environments computationally intractable for standard hardware. For such systems, global variational architectures remain necessary. Nevertheless, for 2D symmetry-agnostic studies, this adiabatic-truncation heuristic provides a robust workaround to the flat-landscape initialization problem.
+
+% --- FIGURE PLACEHOLDERS (Omitir si se envía a texto puro, descomentar si se generaron los PDFs) ---
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=0.45\textwidth]{fig2_entanglement_spectrum.pdf}
+%     \caption{\label{fig:spectrum}Extracted logarithmic singular values $\epsilon_i = -\ln(\lambda_i)$ showing the 4-fold degeneracy at $\ln(2)$.}
+% \end{figure}
+
+\section*{Appendix A: Reproducibility and TeNPy 1.1.0 Quirks}
+Reproducing the results of this technical note in TeNPy 1.1.0 requires navigating several undocumented API behaviors:
+\begin{itemize}
+    \item \textbf{Truncation Parameters Routing:} In TeNPy 1.1.0, passing `chi\_max` directly to the main DMRG options dictionary causes them to be silently ignored (triggering a `UserWarning`), defaulting to `chi\_max=100`. They must strictly be nested within a `trunc\_params` sub-dictionary.
+    \item \textbf{In-Place Grouping:} The `group\_sites()` method for both `MPS` and `MPO` objects operates in-place and returns `None`. Assigning the return value (e.g., `psi = psi.group\_sites(n)`) will inadvertently overwrite the MPS object with `None`.
+    \item \textbf{Engine Initialization:} The `TwoSiteDMRGEngine` expects a `Model` instance, not a pre-computed `MPO` object.
+    \item \textbf{Lattice Initialization:} For the `DualSquare` lattice, `MPS.from\_lat\_product\_state()` often raises tiling mismatches. The robust initialization is `MPS.from\_product\_state(model.lat.mps\_sites(), ["up"] * N, bc='infinite')`.
+    \item \textbf{Classical Collapse:} Purely diagonal Hamiltonians collapse to classical minima when initialized without symmetry conservation. A symmetry-breaking perturbation prior to optimization is necessary.
+\end{itemize}
+
+\section*{Acknowledgments}
+The author acknowledges the use of an advanced Large Language Model (LLM) exclusively for code debugging during the TeNPy API reverse-engineering process and for typesetting the \LaTeX{} manuscript. No LLM was used for the conceptualization of the physical heuristic, the interpretation of the results, or the writing of the scientific narrative contained in the main text. Source code for the TeNPy 1.1.0 implementation is available upon request.
+
+\section*{Declaration of Interests}
+The author declares no competing interests. This research was conducted independently using personal resources.
+
+\begin{thebibliography}{5}
+
+\bibitem{kitaev2003}
+A. Y. Kitaev, Ann. Phys. \textbf{303}, 2 (2003).
+
+\bibitem{lihaldane2008}
+H. Li and F. D. M. Haldane, Phys. Rev. Lett. \textbf{101}, 010504 (2008).
+
+\bibitem{eisert2010}
+J. Eisert, M. Cramer, and M. B. Plenio, Rev. Mod. Phys. \textbf{82}, 277 (2010). % Referencia correcta para el Area Law general.
+
+\bibitem{tenpy2024}
+J. Hauschild and F. Pollmann, SciPost Phys. Codebases \textbf{5} (2024). % Referencia actualizada a v1.x
+
+\end{thebibliography}
+
+\end{document}
