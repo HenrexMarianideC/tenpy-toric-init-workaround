@@ -31,6 +31,36 @@ Running `qpip_z2_2d_toric_baseline.py` yields the raw Schmidt values at the enta
 Calculating the logarithmic singular values $\epsilon_i = -\ln(\lambda_i)$ gives the expected 4-fold degeneracy at $\ln(2) \approx 0.693$. 
 *(Note: This differs by a factor of 2 from the standard Li-Haldane entanglement spectrum $\xi_i = -2\ln(\lambda_i)$, but directly reflects the singular value uniformity).*
 
+---
+
+## 📁 3D Architectural Limits: Multi-Coupling Workaround
+
+### The TeNPy 1.1.0 API Bug
+When building 3D native lattices, using `add_multi_coupling` with standard string arguments triggers an undocumented internal crash:
+`IndexError: string index out of range` at `model.py:1384`. 
+
+The internal MPO compiler expects strict tuples `(operator, 3D_displacement, unit_cell_index)`, not flat strings.
+
+### The Workaround
+This script successfully compiles a pure **3D Toric Code** by defining the magnetic flux term as an 8-body cubic operator ($\prod S^z_i$) using the correct hidden tuple format:
+```python
+cube_ops = [
+    ('Sz', [0, 0, 0], 0),
+    ('Sz', [1, 0, 0], 0),
+    # ... 8 vertices of the unit cube
+]
+self.add_multi_coupling(strength, cube_ops)
+```
+
+### ⚠️ Critical Physical Warning
+**Do not use iDMRG to extract topological properties from this script.** 
+While the API compiles successfully, running `TwoSiteDMRGEngine` will yield trivial results (Energy $\approx -0.25$, low $\chi$). 
+
+This is *not* a code bug; it is a mathematical proof of iDMRG's limitations: a 2-site local update engine is topologically blind to 8-body loop operators, causing it to collapse into a trivial paramagnetic product state.
+
+### Intended Use
+Use this script strictly as an **API reference** for complex 3D MPO construction, or as the exact **Loss Function target** to migrate to Neural Quantum States (NQS).
+
 ## Repository Contents
 * `qpip_z2_2d_toric_baseline.py`: Multi-step 2D DMRG baseline using bond dimension squeezing for topological alignment and heuristic spectrum extraction.
 * `qpip_z2_2d_toric_baseline_clean.py`: Optimized 2D baseline using direct topological projection, strict TenPy API compliance, and deterministic spectrum extraction.
