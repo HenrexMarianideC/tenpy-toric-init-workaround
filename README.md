@@ -32,8 +32,10 @@ Calculating the logarithmic singular values $\epsilon_i = -\ln(\lambda_i)$ gives
 *(Note: This differs by a factor of 2 from the standard Li-Haldane entanglement spectrum $\xi_i = -2\ln(\lambda_i)$, but directly reflects the singular value uniformity).*
 
 ## Repository Contents
-* `qpip_z2_2d_toric_baseline.py`: The working 2D benchmark.
-* `qpip_z3_3d_gauge_viability_probe.py`: A demonstration of the 3D Area-Law Wall (saturates RAM).
+* `qpip_z2_2d_toric_baseline.py`: Multi-step 2D DMRG baseline using bond dimension squeezing for topological alignment and heuristic spectrum extraction.
+* `qpip_z2_2d_toric_baseline_clean.py`: Optimized 2D baseline using direct topological projection, strict TenPy API compliance, and deterministic spectrum extraction.
+* `qpip_z3_3d_gauge_viability_probe_crash.py`: Failed 3D emulation via aggressive 2D site-grouping, resulting in catastrophic SVD collapse and memory crash.
+* `qpip_z3_3d_gauge_viability_probe_concept.py`: Native 3D Z3 lattice proving iDMRG fails due to Area Law saturation, justifying the migration to NQS.
 * `plotting_tools.py`: Script to generate the publication-quality PDF figures.
 * `figures/`: The generated `.pdf` plots.
 
