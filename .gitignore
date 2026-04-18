@@ -1,0 +1,20 @@
+# Python basura
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Entornos virtuales
+venv/
+env/
+.env
+
+# Archivos pesados de datos o logs de TeNPy que no queremos subir
+*.h5
+*.log
+*.txt
+
+# Archivos temporales del sistema operativo
+.DS_Store
+Thumbs.db
+.ipynb_checkpoints/
